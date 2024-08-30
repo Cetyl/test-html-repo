@@ -23,9 +23,8 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
+          username: cetyl
+          password: dckr_pat_P4NLsoWnFqejQ3iWm0qzNz8Yjdo
       - name: Tag and push Docker image
         run: |
           docker tag my-web-app:latest ${{ secrets.DOCKER_HUB_USERNAME }}/my-web-app:latest
