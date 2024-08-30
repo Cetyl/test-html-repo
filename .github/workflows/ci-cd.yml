@@ -38,28 +38,20 @@ jobs:
 
     - name: Verify or Create ECS Cluster
       run: |
-        # Retry logic for creating the ECS cluster if it does not exist
-        max_attempts=10
-        attempt=1
         cluster_name=${{ secrets.ECS_CLUSTER_NAME }}
         region=us-east-1
 
-        while true; do
-          if aws ecs describe-clusters --clusters $cluster_name --region $region; then
-            echo "Cluster $cluster_name already exists."
-            break
-          else
-            if [ $attempt -lt $max_attempts ]; then
-              echo "Cluster $cluster_name not found. Attempt $attempt/$max_attempts. Creating cluster..."
-              aws ecs create-cluster --cluster-name $cluster_name --region $region
-              sleep 30 # wait for 30 seconds before retrying
-              attempt=$((attempt + 1))
-            else
-              echo "Failed to create cluster after $max_attempts attempts."
-              exit 1
-            fi
-          fi
-        done
+        # Check if the cluster exists
+        cluster_status=$(aws ecs describe-clusters --clusters $cluster_name --region $region --query "clusters[0].status" --output text)
+
+        if [ "$cluster_status" == "ACTIVE" ]; then
+          echo "Cluster $cluster_name is active."
+        else
+          echo "Cluster $cluster_name is not found or inactive. Creating cluster..."
+          aws ecs create-cluster --cluster-name $cluster_name --region $region
+          # Wait for the cluster to be created and become active
+          sleep 60
+        fi
 
     - name: Register ECS Task Definition
       run: |
@@ -84,35 +76,27 @@ jobs:
 
     - name: Create or Update ECS Service
       run: |
-        # Retry logic for creating the ECS service if it does not exist
-        max_attempts=10
-        attempt=1
         cluster_name=${{ secrets.ECS_CLUSTER_NAME }}
         service_name=${{ secrets.ECS_SERVICE_NAME }}
         region=us-east-1
 
-        while true; do
-          if aws ecs describe-services --services $service_name --cluster $cluster_name --region $region; then
-            echo "Service $service_name already exists."
-            break
-          else
-            if [ $attempt -lt $max_attempts ]; then
-              echo "Service $service_name not found. Attempt $attempt/$max_attempts. Creating service..."
-              aws ecs create-service \
-                --cluster $cluster_name \
-                --service-name $service_name \
-                --task-definition my-task-definition \
-                --desired-count 1 \
-                --launch-type FARGATE \
-                --region $region
-              sleep 30 # wait for 30 seconds before retrying
-              attempt=$((attempt + 1))
-            else
-              echo "Failed to create service after $max_attempts attempts."
-              exit 1
-            fi
-          fi
-        done
+        # Check if the service exists
+        service_status=$(aws ecs describe-services --services $service_name --cluster $cluster_name --region $region --query "services[0].status" --output text)
+
+        if [ "$service_status" == "ACTIVE" ]; then
+          echo "Service $service_name is active."
+        else
+          echo "Service $service_name not found or inactive. Creating service..."
+          aws ecs create-service \
+            --cluster $cluster_name \
+            --service-name $service_name \
+            --task-definition my-task-definition \
+            --desired-count 1 \
+            --launch-type FARGATE \
+            --region $region
+          # Wait for the service to be created
+          sleep 60
+        fi
 
         # Update the service to use the latest task definition
         aws ecs update-service \
