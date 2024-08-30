@@ -44,7 +44,7 @@ jobs:
           SERVICE_NAME="my-service"
           TASK_DEFINITION="my-task-def"
           CONTAINER_NAME="my-container"
-          IMAGE="my-dockerhub-username/my-web-app:latest"
+          IMAGE="cetyl/my-web-app:latest"
 
           # Register task definition
           aws ecs register-task-definition \
