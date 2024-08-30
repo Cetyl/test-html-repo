@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: Deploy to ECS
 
 on:
   push:
@@ -6,42 +6,43 @@ on:
       - main
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+    - name: Set up AWS CLI
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
 
-      - name: Cache Docker layers
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cache/docker
-            /tmp/.buildx-cache
-          key: ${{ runner.os }}-docker-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-docker-
+    - name: Build Docker image
+      run: |
+        docker build -t my-web-app .
 
-      - name: Build Docker image
-        run: |
-          docker build -t my-web-app .
+    - name: Authenticate Docker to ECR
+      run: |
+        aws ecr get-login-password --region your-aws-region | docker login --username AWS --password-stdin your-account-id.dkr.ecr.your-aws-region.amazonaws.com
 
-      - name: Run Docker container
-        run: |
-          docker run -d -p 8080:80 --name my-web-app-container my-web-app
-          sleep 10 # Wait for the container to start
+    - name: Tag Docker image
+      run: |
+        docker tag my-web-app:latest your-account-id.dkr.ecr.your-aws-region.amazonaws.com/my-web-app:latest
 
-      - name: Check if the application is running
-        run: |
-          curl --fail http://localhost:8080 || exit 1
+    - name: Push Docker image to ECR
+      run: |
+        docker push your-account-id.dkr.ecr.your-aws-region.amazonaws.com/my-web-app:latest
 
-      - name: Stop Docker container
-        run: |
-          docker stop my-web-app-container
-          docker rm my-web-app-container
+    - name: Update ECS service
+      run: |
+        # Update ECS service to use the new image
+        ecs-cli configure --cluster your-cluster-name --default-launch-type FARGATE --config-name your-config-name
+        ecs-cli compose --file docker-compose.yml up
+        aws ecs update-service --cluster your-cluster-name --service your-service-name --force-new-deployment
 
-     
+    - name: Clean up Docker images
+      run: |
+        docker system prune -af
