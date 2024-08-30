@@ -45,7 +45,7 @@ jobs:
       - name: Get the latest task definition ARN
         id: task-def-arn
         run: |
-          echo "::set-output name=arn::$(aws ecs describe-task-definition --task-definition my-task-definition --query 'taskDefinition.taskDefinitionArn' --output text)"
+          echo "::set-output name=arn::$(aws ecs describe-task-definition --task-definition my-task-family --query 'taskDefinition.taskDefinitionArn' --output text)"
 
       - name: Deploy updated task definition to ECS
         run: |
