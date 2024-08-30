@@ -38,10 +38,28 @@ jobs:
 
     - name: Verify or Create ECS Cluster
       run: |
-        # Verify if the cluster exists
-        aws ecs describe-clusters --clusters ${{ secrets.ECS_CLUSTER_NAME }} --region us-east-1 || \
-        (echo "Cluster not found. Creating cluster..." && \
-         aws ecs create-cluster --cluster-name ${{ secrets.ECS_CLUSTER_NAME }} --region us-east-1)
+        # Retry logic for creating the ECS cluster if it does not exist
+        max_attempts=10
+        attempt=1
+        cluster_name=${{ secrets.ECS_CLUSTER_NAME }}
+        region=us-east-1
+
+        while true; do
+          if aws ecs describe-clusters --clusters $cluster_name --region $region; then
+            echo "Cluster $cluster_name already exists."
+            break
+          else
+            if [ $attempt -lt $max_attempts ]; then
+              echo "Cluster $cluster_name not found. Attempt $attempt/$max_attempts. Creating cluster..."
+              aws ecs create-cluster --cluster-name $cluster_name --region $region
+              sleep 30 # wait for 30 seconds before retrying
+              attempt=$((attempt + 1))
+            else
+              echo "Failed to create cluster after $max_attempts attempts."
+              exit 1
+            fi
+          fi
+        done
 
     - name: Register ECS Task Definition
       run: |
@@ -66,23 +84,42 @@ jobs:
 
     - name: Create or Update ECS Service
       run: |
-        # Check if the service exists
-        aws ecs describe-services --services ${{ secrets.ECS_SERVICE_NAME }} --cluster ${{ secrets.ECS_CLUSTER_NAME }} --region us-east-1 || \
-        (echo "Service not found. Creating service..." && \
-         aws ecs create-service \
-           --cluster ${{ secrets.ECS_CLUSTER_NAME }} \
-           --service-name ${{ secrets.ECS_SERVICE_NAME }} \
-           --task-definition my-task-definition \
-           --desired-count 1 \
-           --launch-type FARGATE \
-           --region us-east-1)
+        # Retry logic for creating the ECS service if it does not exist
+        max_attempts=10
+        attempt=1
+        cluster_name=${{ secrets.ECS_CLUSTER_NAME }}
+        service_name=${{ secrets.ECS_SERVICE_NAME }}
+        region=us-east-1
+
+        while true; do
+          if aws ecs describe-services --services $service_name --cluster $cluster_name --region $region; then
+            echo "Service $service_name already exists."
+            break
+          else
+            if [ $attempt -lt $max_attempts ]; then
+              echo "Service $service_name not found. Attempt $attempt/$max_attempts. Creating service..."
+              aws ecs create-service \
+                --cluster $cluster_name \
+                --service-name $service_name \
+                --task-definition my-task-definition \
+                --desired-count 1 \
+                --launch-type FARGATE \
+                --region $region
+              sleep 30 # wait for 30 seconds before retrying
+              attempt=$((attempt + 1))
+            else
+              echo "Failed to create service after $max_attempts attempts."
+              exit 1
+            fi
+          fi
+        done
 
         # Update the service to use the latest task definition
         aws ecs update-service \
-          --cluster ${{ secrets.ECS_CLUSTER_NAME }} \
-          --service ${{ secrets.ECS_SERVICE_NAME }} \
+          --cluster $cluster_name \
+          --service $service_name \
           --force-new-deployment \
-          --region us-east-1
+          --region $region
 
     - name: Clean up Docker images (optional)
       run: |
