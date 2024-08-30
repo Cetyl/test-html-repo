@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: Deploy to ECS
 
 on:
   push:
@@ -6,44 +6,50 @@ on:
       - dev
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Log in to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v1
+      - name: Set up AWS CLI
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
       - name: Build Docker image
         run: |
           docker build -t my-web-app .
 
+      - name: Authenticate Docker to ECR
+        run: |
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 730335620727.dkr.ecr.us-east-1.amazonaws.com
+
       - name: Tag Docker image
         run: |
           docker tag my-web-app:latest 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
 
-      - name: Push Docker image to Amazon ECR
+      - name: Push Docker image to ECR
         run: |
           docker push 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
 
-      - name: Update ECS task definition
-        id: update-task-def
+      - name: Register ECS Task Definition
+        id: register-task-def
         run: |
-          ecs-cli configure --region us-east-1 --config-name ecs-config
-          ecs-cli compose --file docker-compose.yml --project-name my-web-app create
-          ecs-cli compose --file docker-compose.yml --project-name my-web-app service up
-          # Alternatively, use AWS CLI to register task definition
           aws ecs register-task-definition \
             --cli-input-json file://ecs-task-definition.json
+
+      - name: Get the latest task definition ARN
+        id: task-def-arn
+        run: |
+          echo "::set-output name=arn::$(aws ecs describe-task-definition --task-definition my-task-definition --query 'taskDefinition.taskDefinitionArn' --output text)"
 
       - name: Deploy updated task definition to ECS
         run: |
           aws ecs update-service \
             --cluster my-cluster \
             --service my-service \
-            --task-definition my-task-definition
+            --task-definition ${{ steps.task-def-arn.outputs.arn }}
