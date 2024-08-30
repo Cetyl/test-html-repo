@@ -1,4 +1,4 @@
-name: Deploy to ECS
+name: CI/CD Pipeline
 
 on:
   push:
@@ -6,109 +6,44 @@ on:
       - dev
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Set up AWS CLI
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
-    - name: Build Docker image
-      run: |
-        docker build -t my-web-app .
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
 
-    - name: Authenticate Docker to ECR
-      run: |
-        aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 730335620727.dkr.ecr.us-east-1.amazonaws.com
+      - name: Build Docker image
+        run: |
+          docker build -t my-web-app .
 
-    - name: Tag Docker image
-      run: |
-        docker tag my-web-app:latest 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
+      - name: Tag Docker image
+        run: |
+          docker tag my-web-app:latest 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
 
-    - name: Push Docker image to ECR
-      run: |
-        docker push 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
+      - name: Push Docker image to Amazon ECR
+        run: |
+          docker push 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
 
-    - name: Register ECS Task Definition
-      run: |
-        aws ecs register-task-definition \
-          --family my-task-definition \
-          --network-mode awsvpc \
-          --requires-compatibilities FARGATE \
-          --cpu 256 \
-          --memory 512 \
-          --container-definitions '[
-            {
-              "name": "my-container",
-              "image": "730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest",
-              "memory": 512,
-              "cpu": 256,
-              "essential": true,
-              "portMappings": [
-                {
-                  "containerPort": 80,
-                  "hostPort": 80
-                }
-              ]
-            }
-          ]' \
-          --region us-east-1
+      - name: Update ECS task definition
+        id: update-task-def
+        run: |
+          ecs-cli configure --region us-east-1 --config-name ecs-config
+          ecs-cli compose --file docker-compose.yml --project-name my-web-app create
+          ecs-cli compose --file docker-compose.yml --project-name my-web-app service up
+          # Alternatively, use AWS CLI to register task definition
+          aws ecs register-task-definition \
+            --cli-input-json file://ecs-task-definition.json
 
-    - name: Verify or Create ECS Cluster
-      run: |
-        cluster_name=${{ secrets.ECS_CLUSTER_NAME }}
-        region=us-east-1
-
-        # Check if the cluster exists
-        cluster_status=$(aws ecs describe-clusters --clusters $cluster_name --region $region --query "clusters[0].status" --output text)
-
-        if [ "$cluster_status" == "ACTIVE" ]; then
-          echo "Cluster $cluster_name is active."
-        else
-          echo "Cluster $cluster_name is not found or inactive. Creating cluster..."
-          aws ecs create-cluster --cluster-name $cluster_name --region $region
-          # Wait for the cluster to be created and become active
-          sleep 60
-        fi
-
-    - name: Create or Update ECS Service
-      run: |
-        cluster_name=${{ secrets.ECS_CLUSTER_NAME }}
-        service_name=${{ secrets.ECS_SERVICE_NAME }}
-        region=us-east-1
-
-        # Check if the service exists
-        service_status=$(aws ecs describe-services --services $service_name --cluster $cluster_name --region $region --query "services[0].status" --output text)
-
-        if [ "$service_status" == "ACTIVE" ]; then
-          echo "Service $service_name is active."
-        else
-          echo "Service $service_name not found or inactive. Creating service..."
-          aws ecs create-service \
-            --cluster $cluster_name \
-            --service-name $service_name \
-            --task-definition my-task-definition \
-            --desired-count 1 \
-            --launch-type FARGATE \
-            --region $region
-          # Wait for the service to be created
-          sleep 60
-        fi
-
-        # Update the service to use the latest task definition
-        aws ecs update-service \
-          --cluster $cluster_name \
-          --service $service_name \
-          --force-new-deployment \
-          --region $region
-
-    - name: Clean up Docker images (optional)
-      run: |
-        docker system prune -af
+      - name: Deploy updated task definition to ECS
+        run: |
+          aws ecs update-service \
+            --cluster my-cluster \
+            --service my-service \
+            --task-definition my-task-definition
