@@ -36,27 +36,14 @@ jobs:
       run: |
         docker push 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
 
-    - name: Verify or Create ECS Cluster
-      run: |
-        cluster_name=${{ secrets.ECS_CLUSTER_NAME }}
-        region=us-east-1
-
-        # Check if the cluster exists
-        cluster_status=$(aws ecs describe-clusters --clusters $cluster_name --region $region --query "clusters[0].status" --output text)
-
-        if [ "$cluster_status" == "ACTIVE" ]; then
-          echo "Cluster $cluster_name is active."
-        else
-          echo "Cluster $cluster_name is not found or inactive. Creating cluster..."
-          aws ecs create-cluster --cluster-name $cluster_name --region $region
-          # Wait for the cluster to be created and become active
-          sleep 60
-        fi
-
     - name: Register ECS Task Definition
       run: |
         aws ecs register-task-definition \
           --family my-task-definition \
+          --network-mode awsvpc \
+          --requires-compatibilities FARGATE \
+          --cpu 256 \
+          --memory 512 \
           --container-definitions '[
             {
               "name": "my-container",
@@ -73,6 +60,23 @@ jobs:
             }
           ]' \
           --region us-east-1
+
+    - name: Verify or Create ECS Cluster
+      run: |
+        cluster_name=${{ secrets.ECS_CLUSTER_NAME }}
+        region=us-east-1
+
+        # Check if the cluster exists
+        cluster_status=$(aws ecs describe-clusters --clusters $cluster_name --region $region --query "clusters[0].status" --output text)
+
+        if [ "$cluster_status" == "ACTIVE" ]; then
+          echo "Cluster $cluster_name is active."
+        else
+          echo "Cluster $cluster_name is not found or inactive. Creating cluster..."
+          aws ecs create-cluster --cluster-name $cluster_name --region $region
+          # Wait for the cluster to be created and become active
+          sleep 60
+        fi
 
     - name: Create or Update ECS Service
       run: |
