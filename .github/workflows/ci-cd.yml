@@ -29,3 +29,30 @@ jobs:
         run: |
           docker tag my-web-app:latest cetyl/my-web-app:latest
           docker push cetyl/my-web-app:latest
+
+      - name: Set up AWS CLI
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2 # Change this to your desired region
+
+      - name: Deploy to AWS ECS
+        run: |
+          # Variables
+          CLUSTER_NAME="my-cluster"
+          SERVICE_NAME="my-service"
+          TASK_DEFINITION="my-task-def"
+          CONTAINER_NAME="my-container"
+          IMAGE="my-dockerhub-username/my-web-app:latest"
+
+          # Register task definition
+          aws ecs register-task-definition \
+            --family $TASK_DEFINITION \
+            --container-definitions '[{"name":"'"$CONTAINER_NAME"'","image":"'"$IMAGE"'","memory":512,"cpu":256,"essential":true}]'
+
+          # Update the service to use the new task definition
+          aws ecs update-service \
+            --cluster $CLUSTER_NAME \
+            --service $SERVICE_NAME \
+            --task-definition $TASK_DEFINITION   
