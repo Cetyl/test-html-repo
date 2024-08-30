@@ -3,7 +3,9 @@ name: Deploy to ECS
 on:
   push:
     branches:
-      - test
+
+      - dev
+
 
 jobs:
   build-and-deploy:
@@ -23,6 +25,7 @@ jobs:
       - name: Build Docker image
         run: |
           docker build -t my-web-app .
+
       - name: Authenticate Docker to ECR
         run: |
           aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 730335620727.dkr.ecr.us-east-1.amazonaws.com
@@ -44,3 +47,35 @@ jobs:
         run: |
           TASK_DEFINITION_ARN=$(aws ecs describe-task-definition --task-definition defination --query 'taskDefinition.taskDefinitionArn' --output text)
           aws ecs update-service --cluster ${{ secrets.ECS_CLUSTER_NAME }} --service ${{ secrets.ECS_SERVICE_NAME }} --force-new-deployment --task-definition $TASK_DEFINITION_ARN
+
+
+      - name: Authenticate Docker to ECR
+        run: |
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 730335620727.dkr.ecr.us-east-1.amazonaws.com
+
+      - name: Tag Docker image
+        run: |
+          docker tag my-web-app:latest 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
+
+      - name: Register ECS Task Definition
+        id: register-task-def
+        run: |
+          aws ecs register-task-definition \
+            --cli-input-json file://my-task-definition.json
+
+      - name: Get the latest task definition ARN
+        id: task-def-arn
+        run: |
+          echo "::set-output name=arn::$(aws ecs describe-task-definition --task-definition my-task-family --query 'taskDefinition.taskDefinitionArn' --output text)"
+
+      - name: Deploy updated task definition to ECS
+        run: |
+          aws ecs update-service \
+            --cluster my-cluster \
+            --service my-service \
+            --task-definition ${{ steps.task-def-arn.outputs.arn }}
+
