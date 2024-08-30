@@ -20,6 +20,10 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
 
+    - name: Create ECR Repository (if not exists)
+      run: |
+        aws ecr describe-repositories --repository-names my-web-app || aws ecr create-repository --repository-name my-web-app
+
     - name: Build Docker image
       run: |
         docker build -t my-web-app .
@@ -38,11 +42,10 @@ jobs:
 
     - name: Update ECS service
       run: |
-        # Update ECS service to use the new image
-        ecs-cli configure --cluster your-cluster-name --default-launch-type FARGATE --config-name your-config-name
+        ecs-cli configure --cluster ${{ secrets.ECS_CLUSTER_NAME }} --default-launch-type FARGATE --config-name your-config-name
         ecs-cli compose --file docker-compose.yml up
-        aws ecs update-service --cluster your-cluster-name --service your-service-name --force-new-deployment
+        aws ecs update-service --cluster ${{ secrets.ECS_CLUSTER_NAME }} --service ${{ secrets.ECS_SERVICE_NAME }} --force-new-deployment
 
-    - name: Clean up Docker images
+    - name: Clean up Docker images (optional)
       run: |
         docker system prune -af
