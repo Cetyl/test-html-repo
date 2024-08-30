@@ -40,7 +40,7 @@ jobs:
         id: register-task-def
         run: |
           aws ecs register-task-definition \
-            --cli-input-json file://ecs-task-definition.json
+            --cli-input-json file://my-task-definition.json
 
       - name: Get the latest task definition ARN
         id: task-def-arn
