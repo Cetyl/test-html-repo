@@ -36,9 +36,12 @@ jobs:
       run: |
         docker push 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
 
-    - name: Create ECS Cluster (if not exists)
+    - name: Verify or Create ECS Cluster
       run: |
-        aws ecs describe-clusters --clusters ${{ secrets.ECS_CLUSTER_NAME }} || aws ecs create-cluster --cluster-name ${{ secrets.ECS_CLUSTER_NAME }}
+        # Verify if the cluster exists
+        aws ecs describe-clusters --clusters ${{ secrets.ECS_CLUSTER_NAME }} --region us-east-1 || \
+        (echo "Cluster not found. Creating cluster..." && \
+         aws ecs create-cluster --cluster-name ${{ secrets.ECS_CLUSTER_NAME }} --region us-east-1)
 
     - name: Register ECS Task Definition
       run: |
@@ -58,21 +61,28 @@ jobs:
                 }
               ]
             }
-          ]'
+          ]' \
+          --region us-east-1
 
-    - name: Create ECS Service (if not exists)
+    - name: Create or Update ECS Service
       run: |
-        aws ecs describe-services --services ${{ secrets.ECS_SERVICE_NAME }} --cluster ${{ secrets.ECS_CLUSTER_NAME }} || \
-        aws ecs create-service \
+        # Check if the service exists
+        aws ecs describe-services --services ${{ secrets.ECS_SERVICE_NAME }} --cluster ${{ secrets.ECS_CLUSTER_NAME }} --region us-east-1 || \
+        (echo "Service not found. Creating service..." && \
+         aws ecs create-service \
+           --cluster ${{ secrets.ECS_CLUSTER_NAME }} \
+           --service-name ${{ secrets.ECS_SERVICE_NAME }} \
+           --task-definition my-task-definition \
+           --desired-count 1 \
+           --launch-type FARGATE \
+           --region us-east-1)
+
+        # Update the service to use the latest task definition
+        aws ecs update-service \
           --cluster ${{ secrets.ECS_CLUSTER_NAME }} \
-          --service-name ${{ secrets.ECS_SERVICE_NAME }} \
-          --task-definition my-task-definition \
-          --desired-count 1 \
-          --launch-type FARGATE
-
-    - name: Update ECS Service
-      run: |
-        aws ecs update-service --cluster ${{ secrets.ECS_CLUSTER_NAME }} --service ${{ secrets.ECS_SERVICE_NAME }} --force-new-deployment
+          --service ${{ secrets.ECS_SERVICE_NAME }} \
+          --force-new-deployment \
+          --region us-east-1
 
     - name: Clean up Docker images (optional)
       run: |
