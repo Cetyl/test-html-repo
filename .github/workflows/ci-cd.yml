@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -28,5 +29,19 @@ jobs:
       - name: Build Docker image
         run: |
           docker build -t my-web-app .
+
+      - name: Run Docker container
+        run: |
+          docker run -d -p 8080:80 --name my-web-app-container my-web-app
+          sleep 10 # Wait for the container to start
+
+      - name: Check if the application is running
+        run: |
+          curl --fail http://localhost:8080 || exit 1
+
+      - name: Stop Docker container
+        run: |
+          docker stop my-web-app-container
+          docker rm my-web-app-container
 
       
