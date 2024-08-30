@@ -4,7 +4,7 @@
 CLUSTER_NAME="my-cluster"
 SERVICE_NAME="my-service"
 TASK_DEFINITION="my-task-def"
-REGION="us-west-2"
+REGION="us-east-1"
 
 # Register task definition
 aws ecs register-task-definition \
