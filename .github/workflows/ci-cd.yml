@@ -3,10 +3,10 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - main
+      - dev
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -30,18 +30,43 @@ jobs:
         run: |
           docker build -t my-web-app .
 
-      - name: Run Docker container
+      - name: Log in to Amazon ECR
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
-          docker run -d -p 8080:80 --name my-web-app-container my-web-app
-          sleep 10 # Wait for the container to start
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin 730335620727.dkr.ecr.us-east-1.amazonaws.com
 
-      - name: Check if the application is running
+      - name: Tag Docker image
         run: |
-          curl --fail http://localhost:8080 || exit 1
+          docker tag my-web-app:latest 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
 
-      - name: Stop Docker container
+      - name: Push Docker image to ECR
         run: |
-          docker stop my-web-app-container
-          docker rm my-web-app-container
+          docker push 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
 
-     
+      - name: Update ECS service
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          CLUSTER_NAME=bangon
+          SERVICE_NAME=my-web-app-service
+          IMAGE_URI=730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
+
+          # Update the ECS service to use the new image
+          aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment --region $AWS_REGION
+
+      - name: Wait for deployment to complete
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          CLUSTER_NAME=bangon
+          SERVICE_NAME=my-web-app-service
+
+          # Wait for the service to stabilize
+          aws ecs wait services-stable --cluster $CLUSTER_NAME --services $SERVICE_NAME --region $AWS_REGION
