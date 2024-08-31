@@ -28,7 +28,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t my-web-app:${{ github.sha }} .
+          docker build -t my-web-app .
 
       - name: Log in to Amazon ECR
         env:
@@ -40,11 +40,11 @@ jobs:
 
       - name: Tag Docker image
         run: |
-          docker tag my-web-app:${{ github.sha }} 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:${{ github.sha }}
+          docker tag my-web-app:${{ github.sha }} 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
 
       - name: Push Docker image to ECR
         run: |
-          docker push 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:${{ github.sha }}
+          docker push 730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
 
       - name: Update ECS service
         env:
@@ -54,7 +54,7 @@ jobs:
         run: |
           CLUSTER_NAME=bangon
           SERVICE_NAME=my-web-app-service
-          IMAGE_URI=730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:${{ github.sha }}
+          IMAGE_URI=730335620727.dkr.ecr.us-east-1.amazonaws.com/my-web-app:latest
 
           # Update the ECS service to use the new image
           aws ecs update-service --cluster $CLUSTER_NAME --service $SERVICE_NAME --force-new-deployment --region $AWS_REGION
