@@ -3,7 +3,7 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - test 
+      - test
 
 jobs:
   build-and-deploy:
@@ -12,8 +12,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-       # with:
-         # path: terraform # Specify the path if Terraform files are in a subdirectory
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -58,15 +56,20 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-       # working-directory: terraform # Specify the working directory if Terraform files are in a subdirectory
         run: terraform init
+
+      - name: Terraform Refresh
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: terraform refresh
 
       - name: Terraform Plan
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-       #  working-directory: terraform # Specify the working directory if Terraform files are in a subdirectory
         run: terraform plan
 
       - name: Terraform Apply
@@ -74,7 +77,6 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-       # working-directory: terraform # Specify the working directory if Terraform files are in a subdirectory
         run: terraform apply -auto-approve
 
       - name: Update ECS service
