@@ -12,9 +12,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-        with:
+       # with:
           # If Terraform files are in a subdirectory, specify it here
-          path: terraform # Comment out or remove this if files are in the root directory
+          # path: terraform # Comment out or remove this if files are in the root directory
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
