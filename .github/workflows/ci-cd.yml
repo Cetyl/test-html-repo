@@ -62,4 +62,3 @@ jobs:
           SERVICE_NAME=my-web-app-service
           # Wait for the service to stabilize 
           aws ecs wait services-stable --cluster $CLUSTER_NAME --services $SERVICE_NAME --region $AWS_REGION
-Update index.html · Cetyl/test-html-repo@bc872fa 
