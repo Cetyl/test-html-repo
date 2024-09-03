@@ -52,11 +52,11 @@ jobs:
           terraform_version: 1.6.0 # Specify the Terraform version you want to use
 
       - name: Terraform Init
-        working-directory: terraform # Specify the working directory if Terraform files are in a subdirectory
+        # working-directory: terraform # Specify the working directory if Terraform files are in a subdirectory
         run: terraform init
 
       - name: Terraform Plan
-        working-directory: terraform # Specify the working directory if Terraform files are in a subdirectory
+        # working-directory: terraform # Specify the working directory if Terraform files are in a subdirectory
         run: terraform plan
 
       - name: Terraform Apply
@@ -64,7 +64,7 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        working-directory: terraform # Specify the working directory if Terraform files are in a subdirectory
+        # working-directory: terraform # Specify the working directory if Terraform files are in a subdirectory
         run: terraform apply -auto-approve
 
 
